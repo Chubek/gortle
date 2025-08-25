@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -109,6 +110,107 @@ func (t *Turtle) drawSprite() {
 		&center,
 		sdl.FLIP_NONE,
 	)
+}
+
+func (t *Turtle) BucketFill() {
+	sx, sy := t.screenCoords(t.x, t.y)
+	w, h := WindowWidth, WindowHeight
+	pitch := w * 4
+
+	pixels := make([]byte, h*pitch)
+	if err := t.renderer.ReadPixels(
+		nil,
+		sdl.PIXELFORMAT_RGBA8888,
+		unsafe.Pointer(&pixels[0]),
+		pitch,
+	); err != nil {
+		log.Printf("bucketfill: ReadPixels failed: %v", err)
+		return
+	}
+
+	startIdx := int(sy)*pitch + int(sx)*4
+	targetR := pixels[startIdx+0]
+	targetG := pixels[startIdx+1]
+	targetB := pixels[startIdx+2]
+	targetA := pixels[startIdx+3]
+
+	fillR, fillG, fillB, fillA := t.r, t.g, t.b, t.a
+	if targetR == fillR && targetG == fillG && targetB == fillB && targetA == fillA {
+		return
+	}
+
+	type point struct{ x, y int }
+
+	stack := make([]point, 0, 1024)
+	stack = append(stack, point{int(sx), int(sy)})
+
+	for len(stack) > 0 {
+		p := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		x, y := p.x, p.y
+
+		xi := x
+		for xi >= 0 {
+			if pixels[idx+0] != targetR ||
+				pixels[idx+1] != targetG ||
+				pixels[idx+2] != targetB ||
+				pixels[idx+3] != targetA {
+				break
+			}
+			xi -= 1
+		}
+		left := xi + 1
+
+		for xx := left; xx < w; xx++ {
+			idx := y*pitch + xx*4
+			if pixels[idx+0] != targetR ||
+				pixels[idx+1] != targetG ||
+				pixels[idx+2] != targetB ||
+				pixels[idx+3] != targetA {
+				break
+			}
+
+			if y > 0 {
+				upIdx := (y-1)*pitch + xx*4
+				if pixels[upIdx+0] == targetR &&
+					pixels[upIdx+1] == targetG &&
+					pixels[upIdx+2] == targetB &&
+					pixels[upIdx+3] == targetA {
+					stack = append(stack, point{xx, y - 1})
+				}
+			}
+
+			if y < h-1 {
+				dnIdx := (y+1)*pitch + xx*4
+				if pixels[dnIdx+0] == targetR &&
+					pixels[dnIdx+1] == targetG &&
+					pixels[dnIdx+2] == targetB &&
+					pixels[dnIdx+3] == targetA {
+					stack = append(stack, point{xx, y + 1})
+				}
+			}
+		}
+	}
+
+	tex, err := t.renderer.CreateTexture(
+		sdl.PIXELFORMAT_RGBA8888,
+		sdl.TEXTUREACCESS_STATIC,
+		int32(w),
+		int32(h),
+	)
+	if err != nil {
+		log.Printf("bucketfill: CreateTexture failed: %v", err)
+		return
+	}
+	defer tex.Destroy()
+
+	if err := tex.Update(nil, pixels, pitch); err != nil {
+		log.Printf("bucketfill: Texture.Update failed: %v", err)
+		return
+	}
+
+	t.renderer.Copy(tex, nil, nil)
+	t.renderer.Present()
 }
 
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
@@ -245,14 +347,6 @@ func (t *Turtle) ShowTurtle() {
 
 func (t *Turtle) HideTurtle() {
 	t.showTurtle = false
-}
-
-func (t *Turtle) WrapOn() {
-	t.wrap = true
-}
-
-func (t *Turtle) WrapOff() {
-	t.wrap = false
 }
 
 func (t *Turtle) SetColor(r, g, b, a uint8) {
