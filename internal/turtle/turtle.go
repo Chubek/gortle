@@ -503,6 +503,23 @@ func (t *Turtle) HideTurtle() {
 	t.showTurtle = false
 }
 
+func (t *Turtle) Home() {
+	t.x, t.y = 0, 0
+	t.angle = 0
+}
+
+func (t *Turtle) Clear() {
+	t.renderer.SetDrawColor(0, 0, 0, 255)
+	t.renderer.Clear()
+	t.renderer.Present()
+	t.Home()
+	t.penDown = true
+	t.r, t.g, t.b, t.a = 255, 255, 255, 255
+	t.scale = 1.0
+	t.minX, t.minY = 0, 0
+	t.maxX, t.maxY = screenWidth-1, screenHeight-1
+}
+
 func (t *Turtle) SetColor(r, g, b, a uint8) {
 	t.r, t.g, t.b, t.a = r, g, b, a
 }
@@ -562,10 +579,6 @@ func (t *Turtle) SetFontPath(fontPath string) {
 	t.fontPath = fontPath
 }
 
-func (t *Turtle) Home() {
-	t.x, t.y = 0, 0
-	t.angle = 0
-}
 
 func (t *Turtle) GetPosition() (float64, float64) {
 	return t.x, t.y
@@ -607,14 +620,3 @@ func (t *Turtle) Towards(x, y float64) float64 {
 	return heading
 }
 
-func (t *Turtle) Clear() {
-	t.renderer.SetDrawColor(0, 0, 0, 255)
-	t.renderer.Clear()
-	t.renderer.Present()
-	t.Home()
-	t.penDown = true
-	t.r, t.g, t.b, t.a = 255, 255, 255, 255
-	t.scale = 1.0
-	t.minX, t.minY = 0, 0
-	t.maxX, t.maxY = screenWidth-1, screenHeight-1
-}
