@@ -12,6 +12,14 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+type Wrapping int
+
+const (
+	WrappingWrap   Wrapping = iota
+	WrappingFence  Wrapping
+	WrappingWindow Wrapping
+)
+
 var (
 	WindowWidth  = 800
 	WindowHeight = 600
@@ -22,11 +30,11 @@ type Turtle struct {
 	angle      float64
 	penDown    bool
 	showTurtle bool
-	wrap       true
+	wrapMode   Wrapping
 	r, g, b, a uint8
 	scale      float64
-	minx, miny int32
-	maxx, maxy int32
+	minX, minY int32
+	maxX, maxY int32
 	spriteW    int32
 	spriteH    int32
 	renderer   *sdl.Renderer
@@ -40,16 +48,16 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		angle:      0,
 		penDown:    false,
 		showTurtle: false,
-		wrap:       true,
+		wrapMode:   WrappingWrap,
 		r:          255,
 		g:          255,
 		b:          255,
 		a:          255,
 		scale:      1.0,
-		minx:       0,
-		miny:       0,
-		maxx:       WindowWidth - 1,
-		maxy:       WindowHeight - 1,
+		minX:       0,
+		minY:       0,
+		maxX:       WindowWidth - 1,
+		maxY:       WindowHeight - 1,
 		spriteW:    -1,
 		spriteH:    -1,
 		renderer:   r,
@@ -109,22 +117,37 @@ func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
 	sx := int32(WindowWidth/2 + px)
 	sy := int32(WindowHeight/2 - py)
 
-	if sx < t.minx {
-		sx = t.minx
+	if sx < t.minX {
+		sx = t.minX
 	}
-	if sx > t.maxx {
-		sx = t.maxx
+	if sx > t.maxX {
+		sx = t.maxX
 	}
-	if sy < t.miny {
-		sy = t.miny
+	if sy < t.minY {
+		sy = t.minY
 	}
-	if sy > t.maxy {
-		sy = t.maxy
+	if sy > t.maxY {
+		sy = t.maxY
 	}
 
-	if t.wrap {
+	switch t.wrapMode {
+	case WrappingWrap:
 		sx = ((sx % WindowWidth) + WindowWidth) % WindowWidth
 		sy = ((sy % WindowHeight) + WindowHeight) % WindowHeight
+	case WrappingFence:
+		if sx < 0 {
+			sx = 0
+		} else if sx >= WindowWidth {
+			sx = WindowWidth - 1
+		}
+
+		if sy < 0 {
+			sy = 0
+		} else if sy >= WindowHeight {
+			sy = WindowHeight - 1
+		}
+	case WrappingWindow:
+		break
 	}
 
 	return sx, sy
@@ -137,6 +160,14 @@ func (t *Turtle) Forward(dist float64) {
 	newX := t.x + dx
 	newY := t.y + dy
 
+	if t.wrapMode == WrappingFence {
+		maxX := float64(WindowWidth) / t.scale / 2
+		maxY := float64(WindowHeight) / t.scale / 2
+		if newX > maxX || newX < -maxX || newY > maxY || newY < -maxY {
+			return
+		}
+	}
+
 	if t.penDown {
 		t.renderer.SetDrawColor(t.r, t.g, t.b, t.a)
 		x1, y1 := t.screenCoords(t.x, t.y)
@@ -144,15 +175,13 @@ func (t *Turtle) Forward(dist float64) {
 		t.renderer.DrawLine(x1, y1, x2, y2)
 	}
 
-	t.x = newX
-	t.y = newY
+	t.x, t.y = newX, newY
 
-	if t.wrap {
+	if t.wrapMode == WrappingWrap {
 		wUnits := float64(WindowWidth) / t.scale
 		hUnits := float64(WindowHeight) / t.scale
 
-		halfW := wUnits / 2
-		halfH := hUnits / 2
+		halfW, halfH := wUnits/2, hUnits/2
 
 		if t.x > halfW {
 			t.x -= wUnits
@@ -250,26 +279,31 @@ func (t *Turtle) SetScale(scale float64) {
 	t.scale = scale
 }
 
-func (t *Turtle) SetBounds(minx, miny, maxx, maxy int32) {
-	if minx < 0 {
-		minx = 0
+func (t *Turtle) SetBounds(minX, minY, maxX, maxY int32) {
+	if minX < 0 {
+		minX = 0
 	}
-	if miny < 0 {
-		miny = 0
+	if minY < 0 {
+		minY = 0
 	}
-	if maxx >= WindowWidth {
-		maxx = WindowWidth - 1
+	if maxX >= WindowWidth {
+		maxX = WindowWidth - 1
 	}
-	if maxy >= WindowHeight {
-		maxy = WindowHeight - 1
+	if maxY >= WindowHeight {
+		maxY = WindowHeight - 1
 	}
-	if minx > maxx {
-		minx, maxx = maxx, maxy
+	if minX > maxX {
+		minX, maxX = maxX, maxY
+
 	}
-	if miny > maxy {
-		miny, maxy = maxy, miny
+	if minY > maxY {
+		minY, maxY = maxY, minY
 	}
-	t.minx, t.miny, t.maxx, t.maxy = minx, miny, maxx, maxy
+	t.minX, t.minY, t.maxX, t.maxY = minX, minY, maxX, maxY
+}
+
+func (t *Turtle) SetWrapMode(wrapMode Wrapping) {
+	t.wrapMode = wrapMode
 }
 
 func (t *Turtle) Home() {
@@ -298,7 +332,11 @@ func (t *Turtle) GetScale() float64 {
 }
 
 func (t *Turtle) GetBounds() (int32, int32, int32, int32) {
-	return t.minx, t.miny, t.maxx, t.maxy
+	return t.minX, t.minY, t.maxX, t.maxY
+}
+
+func (t *Turtle) GetWrapMode() Wrapping {
+	return t.wrapMode
 }
 
 func (t *Turtle) Towards(x, y float64) float64 {
@@ -321,6 +359,6 @@ func (t *Turtle) Clear() {
 	t.penDown = true
 	t.r, t.g, t.b, t.a = 255, 255, 255, 255
 	t.scale = 1.0
-	t.minx, t.miny = 0, 0
-	t.maxx, t.maxy = screenWidth-1, screenHeight-1
+	t.minX, t.minY = 0, 0
+	t.maxX, t.maxY = screenWidth-1, screenHeight-1
 }
