@@ -21,6 +21,9 @@ type Turtle struct {
 	angle      float64
 	penDown    bool
 	r, g, b, a uint8
+	scale      float64
+	minx, miny int32
+	maxx, maxy int32
 	renderer   *sdl.Renderer
 }
 
@@ -33,14 +36,34 @@ func NewTurtle(r *sdl.Renderer) *Turtle {
 		g:        255,
 		b:        255,
 		a:        255,
+		scale:    1,
+		minx:     0,
+		miny:     0,
+		maxx:     windowWidth - 1,
+		maxy:     windowHeight - 1,
 		renderer: r,
 	}
 	return t
 }
 
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
-	sx := int32(windowWidth/2 + x)
-	sy := int32(windowHeight/2 - y)
+	px := x * t.scale
+	py := y * t.scale
+	sx := int32(windowWidth/2 + px)
+	sy := int32(windowHeight/2 - py)
+
+	if sx < t.minx {
+		sx = t.minx
+	}
+	if sx > t.maxx {
+		sx = t.maxx
+	}
+	if sy < t.miny {
+		sy = t.miny
+	}
+	if sy > t.maxy {
+		sy = t.maxy
+	}
 	return sx, sy
 }
 
@@ -122,9 +145,71 @@ func (t *Turtle) SetAngle(angle float64) {
 	t.angle = angle
 }
 
+func (t *Turtle) SetScale(scale float64) {
+	t.scale = scale
+}
+
+func (t *Turtle) SetBounds(minx, miny, maxx, maxy int32) {
+	if minx < 0 {
+		minx = 0
+	}
+	if miny < 0 {
+		miny = 0
+	}
+	if maxx >= windowWidth {
+		maxx = windowWidth - 1
+	}
+	if maxy >= windowHeight {
+		maxy = windowHeight - 1
+	}
+	if minx > maxx {
+		minx, maxx = maxx, maxy
+	}
+	if miny > maxy {
+		miny, maxy = maxy, miny
+	}
+	t.minx, t.miny, t.maxx, t.maxy = minx, miny, maxx, maxy
+}
+
 func (t *Turtle) Home() {
 	t.x, t.y = 0, 0
 	t.angle = 0
+}
+
+func (t *Turtle) GetPosition() (float64, float64) {
+	return t.x, t.y
+}
+
+func (t *Turtle) GetX() float64 {
+	return t.x
+}
+
+func (t *Turtle) GetY() float64 {
+	return t.y
+}
+
+func (t *Turtle) GetAngle() float64 {
+	return t.angle
+}
+
+func (t *Turtle) GetScale() float64 {
+	return t.scale
+}
+
+func (t *Turtle) GetBounds() (int32, int32, int32, int32) {
+	return t.minx, t.miny, t.maxx, t.maxy
+}
+
+func (t *Turtle) Towards(x, y float64) float64 {
+	dx := x - t.x
+	dy := y - t.y
+
+	heading := math.Atan2(dy, dx) * 180.0 / math.Pi
+	if heading < 0 {
+		heading += 360.0
+	}
+
+	return heading
 }
 
 func (t *Turtle) Clear() {
