@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -20,30 +21,84 @@ type Turtle struct {
 	x, y       float64
 	angle      float64
 	penDown    bool
+	showTurtle bool
 	r, g, b, a uint8
 	scale      float64
 	minx, miny int32
 	maxx, maxy int32
+	spriteW    int32
+	spriteH    int32
 	renderer   *sdl.Renderer
+	sprite     *sdl.Texture
 }
 
-func NewTurtle(r *sdl.Renderer) *Turtle {
+func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 	t := &Turtle{
-		x:        0,
-		y:        0,
-		angle:    0,
-		r:        255,
-		g:        255,
-		b:        255,
-		a:        255,
-		scale:    1.0,
-		minx:     0,
-		miny:     0,
-		maxx:     windowWidth - 1,
-		maxy:     windowHeight - 1,
-		renderer: r,
+		x:          0,
+		y:          0,
+		angle:      0,
+		penDown:    false,
+		showTurtle: false,
+		r:          255,
+		g:          255,
+		b:          255,
+		a:          255,
+		scale:      1.0,
+		minx:       0,
+		miny:       0,
+		maxx:       windowWidth - 1,
+		maxy:       windowHeight - 1,
+		spriteW:    -1,
+		spriteH:    -1,
+		renderer:   r,
+		sprite:     s,
 	}
 	return t
+}
+
+func LoadTurtleImage(path string) error {
+	tex, err := img.LoadTexture(t.renderer, path)
+	if err != nil {
+		return err
+	}
+
+	var query sdl.TextureInfo
+	if err := tex.Query(&query); err != nil {
+		tex.Destroy()
+		return err
+	}
+
+	t.sprite = tex
+	t.spriteW = query.Width
+	t.spriteH = query.Height
+
+	return nil
+}
+
+func (t *Turtle) drawSprite() {
+	if !t.showTurtle || t.sprite == nil {
+		return
+	}
+
+	sx, sy := t.screenCoords(t.x, t.y)
+	w, h := t.spriteW, t.spriteH
+
+	dst := sdl.Rect{
+		X: sx - w/2,
+		Y: sy - h/2,
+		W: w,
+		H: h,
+	}
+
+	center := sdl.Point{X: w / 2, Y: h / 2}
+	t.renderer.CopyEx(
+		t.sprite,
+		nil,
+		&dst,
+		-t.angle,
+		&center,
+		sdl.FLIP_NONE,
+	)
 }
 
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
@@ -79,11 +134,13 @@ func (t *Turtle) Forward(dist float64) {
 		x1, y1 := t.screenCoords(t.x, t.y)
 		x2, y2 := t.screenCoords(newX, newY)
 		t.renderer.DrawLine(x1, y1, x2, y2)
-		t.renderer.Present()
 	}
 
 	t.x = newX
 	t.y = newY
+
+	t.drawSprite()
+	t.renderer.Present()
 }
 
 func (t *Turtle) DrawArc(deg, rad float64) {
@@ -123,6 +180,14 @@ func (t *Turtle) PenUp() {
 
 func (t *Turtle) PenDown() {
 	t.penDown = true
+}
+
+func (t *Turtle) ShowTurtle() {
+	t.showTurtle = true
+}
+
+func (t *Turtle) HideTurtle() {
+	t.showTurtle = false
 }
 
 func (t *Turtle) SetColor(r, g, b, a uint8) {
