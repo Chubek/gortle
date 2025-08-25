@@ -64,7 +64,7 @@ func (t *Turtle) Forward(dist float64) {
 }
 
 func (t *Turtle) DrawArc(deg, rad float64) {
-	steps := int(math.Abs(deg))
+	steps := math.Floor(math.Abs(deg))
 	if steps == 0 {
 		return
 	}
