@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+	"os"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -45,6 +46,8 @@ type Turtle struct {
 	maxX, maxY int32
 	spriteW    int32
 	spriteH    int32
+	fontSize   uint
+	fontPath   string
 	path       []Point
 	renderer   *sdl.Renderer
 	sprite     *sdl.Texture
@@ -71,6 +74,8 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		maxY:       WindowHeight - 1,
 		spriteW:    -1,
 		spriteH:    -1,
+		fontSize:   12,
+		fontPath:   os.GetEnv("GORTLE_DEFAULT_FONTPATH"),
 		path:       make([]Point, 0, 1024),
 		renderer:   r,
 		sprite:     s,
@@ -97,15 +102,15 @@ func (t *Turtle) LoadTurtleImage(path string) error {
 	return nil
 }
 
-func (t *Turtle) LoadFont(path string, pointSize int) error {
+func (t *Turtle) LoadFont() error {
 	t.CloseFont()
 
 	if err := ttf.Init(); err != nil {
 		return fmt.Errorf("setlabelfont: ttf.Init failed: %v", err)
 	}
 
-	if f, err := ttf.OpenFont(path, pointSize); err != nil {
-		return fmt.Errorf("setlabelfont: ttf.OpenFont(%s, %d) failed: %v", path, pointSize, err)
+	if f, err := ttf.OpenFont(t.fontPath, t.fontSize); err != nil {
+		return fmt.Errorf("setlabelfont: ttf.OpenFont failed: %v", err)
 	}
 	t.font = f
 	return nil
@@ -146,7 +151,7 @@ func (t *Turtle) drawSprite() {
 
 func (t *Turtle) PrintLabel(label string) {
 	if t.font == nil {
-		t.LoadDefaultFont()
+		t.LoadFont()
 	}
 
 	fg := sdl.Color{R: t.r, G: t.g, B: t.b, A: t.a}
@@ -547,6 +552,14 @@ func (t *Turtle) SetBounds(minX, minY, maxX, maxY int32) {
 
 func (t *Turtle) SetWrapMode(wrapMode Wrapping) {
 	t.wrapMode = wrapMode
+}
+
+func (t *Turtle) SetFontSize(fontSize uint) {
+	t.fontSize = fontSize
+}
+
+func (t *Turtle) SetFontPath(fontPath string) {
+	t.fontPath = fontPath
 }
 
 func (t *Turtle) Home() {
