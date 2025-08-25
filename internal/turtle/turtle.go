@@ -36,7 +36,7 @@ func NewTurtle(r *sdl.Renderer) *Turtle {
 		g:        255,
 		b:        255,
 		a:        255,
-		scale:    1,
+		scale:    1.0,
 		minx:     0,
 		miny:     0,
 		maxx:     windowWidth - 1,
@@ -219,4 +219,7 @@ func (t *Turtle) Clear() {
 	t.Home()
 	t.penDown = true
 	t.r, t.g, t.b, t.a = 255, 255, 255, 255
+	t.scale = 1.0
+	t.minx, t.miny = 0, 0
+	t.maxx, t.maxy = screenWidth-1, screenHeight-1
 }
