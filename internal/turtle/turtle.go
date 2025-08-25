@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	WINDOW_Width   = 800
-	WINDOW_Height = 600
+	windowWidth  = 800
+	windowHeight = 600
 )
 
 type Turtle struct {
@@ -39,8 +39,8 @@ func NewTurtle(r *sdl.Renderer) *Turtle {
 }
 
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
-	sx := int32(WINDOW_Width/2 + x)
-	sy := int32(WINDOW_Height/2 - y)
+	sx := int32(windowWidth/2 + x)
+	sy := int32(windowHeight/2 - y)
 	return sx, sy
 }
 
@@ -61,6 +61,25 @@ func (t *Turtle) Forward(dist float64) {
 
 	t.x = newX
 	t.y = newY
+}
+
+func (t *Turtle) DrawArc(deg, rad float64) {
+	steps := int(math.Abs(deg))
+	if steps == 0 {
+		return
+	}
+
+	stepAngle := math.Abs(deg) / float64(steps)
+	stepLen := rad * (stepAngle * math.Pi / 180.0)
+
+	for i := 0; i < steps; i++ {
+		if deg > 0 {
+			t.Left(stepAngle)
+		} else {
+			t.Right(stepAngle)
+		}
+		t.Forward(stepLen)
+	}
 }
 
 func (t *Turtle) Back(dist float64) {
@@ -87,6 +106,18 @@ func (t *Turtle) SetColor(r, g, b, a uint8) {
 	t.r, t.g, t.b, t.a = r, g, b, a
 }
 
+func (t *Turtle) SetPosition(x, y float64) {
+	t.x, t.y = x, y
+}
+
+func (t *Turtle) SetX(x float64) {
+	t.x = x
+}
+
+func (t *Turtle) SetY(y float64) {
+	t.y = y
+}
+
 func (t *Turtle) Home() {
 	t.x, t.y = 0, 0
 	t.angle = 0
@@ -100,4 +131,3 @@ func (t *Turtle) Clear() {
 	t.penDown = true
 	t.r, t.g, t.b, t.a = 255, 255, 255, 255
 }
-
