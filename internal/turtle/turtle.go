@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unsafe"
-	"os"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -579,7 +579,6 @@ func (t *Turtle) SetFontPath(fontPath string) {
 	t.fontPath = fontPath
 }
 
-
 func (t *Turtle) GetPosition() (float64, float64) {
 	return t.x, t.y
 }
@@ -604,8 +603,20 @@ func (t *Turtle) GetBounds() (int32, int32, int32, int32) {
 	return t.minX, t.minY, t.maxX, t.maxY
 }
 
+func (t *Turtle) GetTurtleVisibility() bool {
+	return t.showTurtle
+}
+
 func (t *Turtle) GetWrapMode() Wrapping {
 	return t.wrapMode
+}
+
+func (t *Turtle) GetFondSize() uint {
+	return t.fontSize
+}
+
+func (t *Turtle) GetFontPath() string {
+	return t.fontPath
 }
 
 func (t *Turtle) Towards(x, y float64) float64 {
@@ -619,4 +630,3 @@ func (t *Turtle) Towards(x, y float64) float64 {
 
 	return heading
 }
-
