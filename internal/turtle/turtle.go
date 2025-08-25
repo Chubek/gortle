@@ -12,6 +12,7 @@ import (
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/ttf"
 )
 
 type Wrapping int
@@ -47,6 +48,7 @@ type Turtle struct {
 	path       []Point
 	renderer   *sdl.Renderer
 	sprite     *sdl.Texture
+	font       *ttf.Font
 }
 
 func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
@@ -72,20 +74,20 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		path:       make([]Point, 0, 1024),
 		renderer:   r,
 		sprite:     s,
+		font:       nil,
 	}
 	return t
 }
 
-func LoadTurtleImage(path string) error {
-	tex, err := img.LoadTexture(t.renderer, path)
-	if err != nil {
-		return err
+func (t *Turtle) LoadTurtleImage(path string) error {
+	if tex, err := img.LoadTexture(t.renderer, path); err != nil {
+		return fmt.Errorf("turtleimage: img.LoadTexture failed: %v", err)
 	}
 
 	var query sdl.TextureInfo
 	if err := tex.Query(&query); err != nil {
 		tex.Destroy()
-		return err
+		return fmt.Errorf("turtleimage: tex.Query failed: %v", err)
 	}
 
 	t.sprite = tex
@@ -93,6 +95,27 @@ func LoadTurtleImage(path string) error {
 	t.spriteH = query.Height
 
 	return nil
+}
+
+func (t *Turtle) LoadFont(path string, pointSize int) error {
+	t.CloseFont()
+
+	if err := ttf.Init(); err != nil {
+		return fmt.Errorf("setlabelfont: ttf.Init failed: %v", err)
+	}
+
+	if f, err := ttf.OpenFont(path, pointSize); err != nil {
+		return fmt.Errorf("setlabelfont: ttf.OpenFont(%s, %d) failed: %v", path, pointSize, err)
+	}
+	t.font = f
+	return nil
+}
+
+func (t *Turtle) CloseFont() {
+	if t.font != nil {
+		t.font.Close()
+		t.font = nil
+	}
 }
 
 func (t *Turtle) drawSprite() {
@@ -119,6 +142,42 @@ func (t *Turtle) drawSprite() {
 		&center,
 		sdl.FLIP_NONE,
 	)
+}
+
+func (t *Turtle) PrintLabel(label string) {
+	if t.font == nil {
+		t.LoadDefaultFont()
+	}
+
+	fg := sdl.Color{R: t.r, G: t.g, B: t.b, A: t.a}
+	if surf, err := t.font.RenderUTF8_Blended(label, fg); err != nil {
+		log.Printf("printlabel: ttf.RenderUTF8_Blended failed: %v", err)
+		return
+	}
+	defer surf.Free()
+
+	if tex, err := t.renderer.CreateTextureFromSurface(surf); err != nil {
+		log.Printf("printlabel: sdl.CreateTextureFromSurface failed: %v", err)
+		return
+	}
+	defer tex.Destroy()
+
+	w, h := surf.W, surf.H
+	sx, sy := t.screenCoords(t.x, t.y)
+	dst := sdl.Rect{
+		X: sx - w/2,
+		Y: sy - h/2,
+		W: w,
+		H: h,
+	}
+
+	if err := t.renderer.Copy(tex, nil, &dst); err != nil {
+		log.Printf("printlabel: sdl.Copy failed: %v", err)
+		return
+	}
+
+	t.renderer.Present()
+
 }
 
 func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
