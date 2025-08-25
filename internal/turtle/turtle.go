@@ -12,9 +12,9 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const (
-	windowWidth  = 800
-	windowHeight = 600
+var (
+	WindowWidth  = 800
+	WindowHeight = 600
 )
 
 type Turtle struct {
@@ -22,6 +22,7 @@ type Turtle struct {
 	angle      float64
 	penDown    bool
 	showTurtle bool
+	wrap       true
 	r, g, b, a uint8
 	scale      float64
 	minx, miny int32
@@ -39,6 +40,7 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		angle:      0,
 		penDown:    false,
 		showTurtle: false,
+		wrap:       true,
 		r:          255,
 		g:          255,
 		b:          255,
@@ -46,8 +48,8 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		scale:      1.0,
 		minx:       0,
 		miny:       0,
-		maxx:       windowWidth - 1,
-		maxy:       windowHeight - 1,
+		maxx:       WindowWidth - 1,
+		maxy:       WindowHeight - 1,
 		spriteW:    -1,
 		spriteH:    -1,
 		renderer:   r,
@@ -104,8 +106,8 @@ func (t *Turtle) drawSprite() {
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
 	px := x * t.scale
 	py := y * t.scale
-	sx := int32(windowWidth/2 + px)
-	sy := int32(windowHeight/2 - py)
+	sx := int32(WindowWidth/2 + px)
+	sy := int32(WindowHeight/2 - py)
 
 	if sx < t.minx {
 		sx = t.minx
@@ -119,6 +121,12 @@ func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
 	if sy > t.maxy {
 		sy = t.maxy
 	}
+
+	if t.wrap {
+		sx = ((sx % WindowWidth) + WindowWidth) % WindowWidth
+		sy = ((sy % WindowHeight) + WindowHeight) % WindowHeight
+	}
+
 	return sx, sy
 }
 
@@ -138,6 +146,26 @@ func (t *Turtle) Forward(dist float64) {
 
 	t.x = newX
 	t.y = newY
+
+	if t.wrap {
+		wUnits := float64(WindowWidth) / t.scale
+		hUnits := float64(WindowHeight) / t.scale
+
+		halfW := wUnits / 2
+		halfH := hUnits / 2
+
+		if t.x > halfW {
+			t.x -= wUnits
+		} else if t.x < -halfW {
+			t.x += wUnits
+		}
+
+		if t.y > halfH {
+			t.y -= hUnits
+		} else if t.y < -halfH {
+			t.y += hUnits
+		}
+	}
 
 	t.drawSprite()
 	t.renderer.Present()
@@ -190,6 +218,14 @@ func (t *Turtle) HideTurtle() {
 	t.showTurtle = false
 }
 
+func (t *Turtle) WrapOn() {
+	t.wrap = true
+}
+
+func (t *Turtle) WrapOff() {
+	t.wrap = false
+}
+
 func (t *Turtle) SetColor(r, g, b, a uint8) {
 	t.r, t.g, t.b, t.a = r, g, b, a
 }
@@ -221,11 +257,11 @@ func (t *Turtle) SetBounds(minx, miny, maxx, maxy int32) {
 	if miny < 0 {
 		miny = 0
 	}
-	if maxx >= windowWidth {
-		maxx = windowWidth - 1
+	if maxx >= WindowWidth {
+		maxx = WindowWidth - 1
 	}
-	if maxy >= windowHeight {
-		maxy = windowHeight - 1
+	if maxy >= WindowHeight {
+		maxy = WindowHeight - 1
 	}
 	if minx > maxx {
 		minx, maxx = maxx, maxy
