@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,11 +27,16 @@ var (
 	WindowHeight = 600
 )
 
+type Point struct {
+	X, Y float64
+}
+
 type Turtle struct {
 	x, y       float64
 	angle      float64
 	penDown    bool
 	showTurtle bool
+	recordPath bool
 	wrapMode   Wrapping
 	r, g, b, a uint8
 	scale      float64
@@ -38,6 +44,7 @@ type Turtle struct {
 	maxX, maxY int32
 	spriteW    int32
 	spriteH    int32
+	path       []Point
 	renderer   *sdl.Renderer
 	sprite     *sdl.Texture
 }
@@ -49,6 +56,7 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		angle:      0,
 		penDown:    false,
 		showTurtle: false,
+		recordPath: false,
 		wrapMode:   WrappingWrap,
 		r:          255,
 		g:          255,
@@ -61,6 +69,7 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		maxY:       WindowHeight - 1,
 		spriteW:    -1,
 		spriteH:    -1,
+		path:       make([]Point, 0, 1024),
 		renderer:   r,
 		sprite:     s,
 	}
@@ -112,6 +121,81 @@ func (t *Turtle) drawSprite() {
 	)
 }
 
+func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
+	origPenDown := t.penDown
+	origShowTurtle := t.showTurtle
+
+	t.penDown = false
+	t.showTurtle = false
+	t.recordPath = true
+	t.path = t.path[:0]
+	t.path = append(t.path, Point{t.x, t.y})
+
+	body()
+
+	t.recordPath = false
+
+	outlineR, outlineG, outlineB, outlineA := t.r, t.g, t.b, t.a
+
+	t.penDown = origPenDown
+	t.showTurtle = origShowTurtle
+
+	n := len(t.path)
+	if n < 3 {
+		return
+	}
+	pts := make([]sdl.Point, n)
+	for i, v := range t.path {
+		sx, sy := t.screenCoords(v.X, v.Y)
+		pts[i] = sdl.Point{X: sx, Y: sy}
+	}
+
+	t.renderer.SetDrawColor(fillR, fillG, fillB, fillA)
+
+	minY := pts[0].Y
+	maxY := pts[0].Y
+	for _, p := range pts {
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+
+	for y := minY; y <= maxY; y++ {
+		var xs []int32
+		for i := 0; i < n; i++ {
+			a := pts[i]
+			b := pts[(i+1)%n]
+			if (a.Y <= y && b.Y > y) || (b.Y <= y && a.Y > y) {
+				tFrac := float64(y-a.Y) / float64(b.Y-a.Y)
+				x := float64(a.X) + tFrace*float64(b.X-a.X)
+				xs := append(xs, int32(math.Round(x)))
+			}
+		}
+		if len(xs) < 2 {
+			continue
+		}
+		sort.Slice(xs, func(i, j int) bool { return xs[i] < sx[j] })
+
+		for i := 0; i+1 < len(xs); i += 2 {
+			x1, x2 := xs[i], xs[i+1]
+			t.renderer.DrawLine(x1, y, x2, y)
+		}
+	}
+
+	t.renderer.SetDrawColor(outlineR, outlineG, outlineB, outlineA)
+	t.renderer.DrawLines(pts)
+
+	last := pts[n-1]
+	first := pts[0]
+	t.renderer.DrawLine(last.X, last.Y, first.X, first.Y)
+
+	t.drawSprite()
+	t.renderer.Present()
+}
+
 func (t *Turtle) BucketFill() {
 	sx, sy := t.screenCoords(t.x, t.y)
 	w, h := WindowWidth, WindowHeight
@@ -139,10 +223,8 @@ func (t *Turtle) BucketFill() {
 		return
 	}
 
-	type point struct{ x, y int }
-
-	stack := make([]point, 0, 1024)
-	stack = append(stack, point{int(sx), int(sy)})
+	stack := make([]Point, 0, 1024)
+	stack = append(stack, Point{int(sx), int(sy)})
 
 	for len(stack) > 0 {
 		p := stack[len(stack)-1]
@@ -176,7 +258,7 @@ func (t *Turtle) BucketFill() {
 					pixels[upIdx+1] == targetG &&
 					pixels[upIdx+2] == targetB &&
 					pixels[upIdx+3] == targetA {
-					stack = append(stack, point{xx, y - 1})
+					stack = append(stack, Point{xx, y - 1})
 				}
 			}
 
@@ -186,7 +268,7 @@ func (t *Turtle) BucketFill() {
 					pixels[dnIdx+1] == targetG &&
 					pixels[dnIdx+2] == targetB &&
 					pixels[dnIdx+3] == targetA {
-					stack = append(stack, point{xx, y + 1})
+					stack = append(stack, Point{xx, y + 1})
 				}
 			}
 		}
@@ -277,6 +359,10 @@ func (t *Turtle) Forward(dist float64) {
 		t.renderer.DrawLine(x1, y1, x2, y2)
 	}
 
+	if t.recordPath {
+		t.path = append(t.path, Point{newX, newY})
+	}
+
 	t.x, t.y = newX, newY
 
 	if t.wrapMode == WrappingWrap {
@@ -296,6 +382,10 @@ func (t *Turtle) Forward(dist float64) {
 		} else if t.y < -halfH {
 			t.y += hUnits
 		}
+	}
+
+	if t.recordPath {
+		return
 	}
 
 	t.drawSprite()
