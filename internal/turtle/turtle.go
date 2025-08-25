@@ -118,6 +118,10 @@ func (t *Turtle) SetY(y float64) {
 	t.y = y
 }
 
+func (t *Turtle) SetAngle(angle float64) {
+	t.angle = angle
+}
+
 func (t *Turtle) Home() {
 	t.x, t.y = 0, 0
 	t.angle = 0
