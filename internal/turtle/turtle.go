@@ -17,11 +17,16 @@ import (
 )
 
 type Wrapping int
+type PenMode int
 
 const (
 	WrappingWrap   Wrapping = iota
 	WrappingFence  Wrapping
 	WrappingWindow Wrapping
+
+	PenPaint   PenMode = iota
+	PenErase   PenMode
+	PenReverse PenMode
 )
 
 var (
@@ -33,6 +38,10 @@ type Point struct {
 	X, Y float64
 }
 
+type Color struct {
+	R, G, B, A uint8
+}
+
 type Turtle struct {
 	x, y       float64
 	angle      float64
@@ -40,7 +49,9 @@ type Turtle struct {
 	showTurtle bool
 	recordPath bool
 	wrapMode   Wrapping
-	r, g, b, a uint8
+	penMode    PenMode
+	bgColor    Color
+	fgColor    Color
 	scale      float64
 	minX, minY int32
 	maxX, maxY int32
@@ -54,6 +65,22 @@ type Turtle struct {
 	font       *ttf.Font
 }
 
+func (c Color) toSDLColor() {
+	return sdl.Color{R: c.R, G: c.G, B: c.B, A: c.A}
+}
+
+func (c Color) getFields() (uint8, uint8, uint8, uint8) {
+	return c.r, c.g, c.b, c.a
+}
+
+func (c Color) getInverseFields() (uint8, uint8, uint8) {
+	return 255 - c.r, 255 - c.g, 255 - c.b, c.a
+}
+
+func (p Point) toSDLPoint() {
+	return sdl.Point{X: p.X, Y: p.Y}
+}
+
 func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 	t := &Turtle{
 		x:          0,
@@ -62,11 +89,10 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		penDown:    false,
 		showTurtle: false,
 		recordPath: false,
+		penMode:    PenPaint,
 		wrapMode:   WrappingWrap,
-		r:          255,
-		g:          255,
-		b:          255,
-		a:          255,
+		bgColor:    Color{255, 255, 255, 255},
+		fgColor:    Color{0, 0, 0, 0},
 		scale:      1.0,
 		minX:       0,
 		minY:       0,
@@ -154,7 +180,7 @@ func (t *Turtle) PrintLabel(label string) {
 		t.LoadFont()
 	}
 
-	fg := sdl.Color{R: t.r, G: t.g, B: t.b, A: t.a}
+	fg := t.fgColor.toSDLColor()
 	if surf, err := t.font.RenderUTF8_Blended(label, fg); err != nil {
 		log.Printf("printlabel: ttf.RenderUTF8_Blended failed: %v", err)
 		return
@@ -199,7 +225,7 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 
 	t.recordPath = false
 
-	outlineR, outlineG, outlineB, outlineA := t.r, t.g, t.b, t.a
+	outlineR, outlineG, outlineB, outlineA := t.currentDrawColor()
 
 	t.penDown = origPenDown
 	t.showTurtle = origShowTurtle
@@ -282,7 +308,7 @@ func (t *Turtle) BucketFill() {
 	targetB := pixels[startIdx+2]
 	targetA := pixels[startIdx+3]
 
-	fillR, fillG, fillB, fillA := t.r, t.g, t.b, t.a
+	fillR, fillG, fillB, fillA := t.currentDrawColor()
 	if targetR == fillR && targetG == fillG && targetB == fillB && targetA == fillA {
 		return
 	}
@@ -359,6 +385,19 @@ func (t *Turtle) BucketFill() {
 	t.renderer.Present()
 }
 
+func (t *Turtle) currentDrawColor() (uint8, uint8, uint8, uint8) {
+	switch t.penMode {
+	case PenPaint:
+		return t.fgColor.getFields()
+	case PenPaint:
+		return t.bgColor.getFields()
+	case PenReverse:
+		return t.fgColor.getInverseFields()
+	default:
+		return t.fgColor.getFields()
+	}
+}
+
 func (t *Turtle) screenCoords(x, y float64) (int32, int32) {
 	px := x * t.scale
 	py := y * t.scale
@@ -417,7 +456,8 @@ func (t *Turtle) Forward(dist float64) {
 	}
 
 	if t.penDown {
-		t.renderer.SetDrawColor(t.r, t.g, t.b, t.a)
+		r, g, b, a = t.currentDrawColor()
+		t.renderer.SetDrawColor(r, g, b, a)
 		x1, y1 := t.screenCoords(t.x, t.y)
 		x2, y2 := t.screenCoords(newX, newY)
 		t.renderer.DrawLine(x1, y1, x2, y2)
@@ -509,19 +549,27 @@ func (t *Turtle) Home() {
 }
 
 func (t *Turtle) Clear() {
-	t.renderer.SetDrawColor(0, 0, 0, 255)
+	r, g, b, a = t.bgColor.getFields()
+	t.renderer.SetDrawColor(r, g, b, a)
 	t.renderer.Clear()
 	t.renderer.Present()
 	t.Home()
 	t.penDown = true
-	t.r, t.g, t.b, t.a = 255, 255, 255, 255
+	t.fgColor = Color{255, 255, 255, 255}
+	t.bgColor = Color{0, 0, 0, 0}
 	t.scale = 1.0
 	t.minX, t.minY = 0, 0
 	t.maxX, t.maxY = screenWidth-1, screenHeight-1
+	t.ShowTurtle()
+	t.PenDown()
 }
 
-func (t *Turtle) SetColor(r, g, b, a uint8) {
-	t.r, t.g, t.b, t.a = r, g, b, a
+func (t *Turtle) SetForegroundColor(r, g, b, a uint8) {
+	t.fgColor = Color{r, g, b, a}
+}
+
+func (t *Turtle) SetBackgroundColor(r, g, b, a uint8) {
+	t.bgColor = Color{r, g, b, a}
 }
 
 func (t *Turtle) SetPosition(x, y float64) {
@@ -571,6 +619,10 @@ func (t *Turtle) SetWrapMode(wrapMode Wrapping) {
 	t.wrapMode = wrapMode
 }
 
+func (t *Turtle) SetPenMode(penMode PenMode) {
+	t.penMode = penMode
+}
+
 func (t *Turtle) SetFontSize(fontSize uint) {
 	t.fontSize = fontSize
 }
@@ -611,7 +663,7 @@ func (t *Turtle) GetWrapMode() Wrapping {
 	return t.wrapMode
 }
 
-func (t *Turtle) GetFondSize() uint {
+func (t *Turtle) GetFontSize() uint {
 	return t.fontSize
 }
 
