@@ -24,8 +24,7 @@ const (
 
 type TArray struct {
 	values []*Thing
-	size   uint
-	dims   uint
+	dims   []uint
 	origin uint
 }
 
@@ -66,13 +65,24 @@ func New(value interface{}, tag Tag, local bool) *Thing {
 	return tng
 }
 
-func NewArray(size, dims, origin uint, local bool) *Thing {
-	arr := TArray{
-		values: make([]*Thing, 0, size),
-		size:   size,
+func NewArray(dims []uint, origin uint, local bool) *Thing {
+	if len(dims) == 0 {
+		log.Fatalf("newarray: dimens are zero")
+		return
+	}
+
+	size := 1
+	for _, dim := range dims {
+		size *= dim
+	}
+
+	values := make([]*Thing, size)
+	arr := &TArray{
+		values: values,
 		dims:   dims,
 		origin: origin,
 	}
+
 	return New(arr, TagTArray, local)
 }
 
@@ -85,7 +95,7 @@ func NewPropList(local bool) *Thing {
 }
 
 func NewProc(tree ast.Ast, defn string, params []TParam) *Thing {
-	proc := TProc{
+	proc := &TProc{
 		env:    make(TEnv, defaultListSize),
 		tree:   tree,
 		defn:   defn,
@@ -95,11 +105,44 @@ func NewProc(tree ast.Ast, defn string, params []TParam) *Thing {
 }
 
 func NewParam(name TSymbol, dflval *Thing, opt, rem bool) *Thing {
-	param := TParam{
+	param := &TParam{
 		name:   name,
 		dflval: dflval,
 		opt:    opt,
 		rem:    rem,
 	}
 	return New(param, TagTParam, true)
+}
+
+func (t *TArray) getIndex(coords []int) (int, error) {
+	if len(coords) != len(t.dims) {
+		return 0, fmt.Errorf("Invalid number of coordinates")
+	}
+
+	index := 0
+	for i, coord := range coords {
+		if coord < t.origin || coord >= t.origin+t.dims[i] {
+			return 0, fmt.Errorf("Index out of bounds for dimension %d", i)
+		}
+		index = index*t.dims[i] + (coord - t.origin)
+	}
+
+	return index, nil
+}
+
+func (t *TArray) GetAt(coords []int) (*Thing, error) {
+	index, err := t.getIndex(coords)
+	if err != nil {
+		return nil, err
+	}
+	return t.values[index], nil
+}
+
+func (t *TArray) SetAt(coords []int, value *Thing) error {
+	index, err := t.getIndex(coords)
+	if err != nil {
+		return err
+	}
+	t.values[index] = value
+	return nil
 }
