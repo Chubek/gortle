@@ -4,4 +4,4 @@ I'm using libsdl2 bindings to handle the graphics. Only a small amount of work i
 
 Say hi to Gortle!
 
-[!gortle.png]
+![Gortle mascot, "Gortle"](gortle.png)
