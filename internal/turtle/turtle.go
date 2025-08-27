@@ -728,6 +728,14 @@ func (t *Turtle) GetPosition() (float64, float64) {
 	return t.x, t.y
 }
 
+func (t *Turtle) GetForegroundColor() (uint8, uint8, uint8, uint8) {
+	return t.fgColor.getFields()
+}
+
+func (t *Turtle) GetBackgroundColor() (uint8, uint8, uint8, uint8) {
+	return t.bgColor.getFields()
+}
+
 func (t *Turtle) GetX() float64 {
 	return t.x
 }
