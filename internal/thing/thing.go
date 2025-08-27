@@ -18,6 +18,8 @@ const (
 	TagTSymbol   Tag
 	TagTNumber   Tag
 	TagTParam    Tag
+
+	defaultListSize uint = 32
 )
 
 type TArray struct {
@@ -28,10 +30,10 @@ type TArray struct {
 }
 
 type TProc struct {
-	env    map[TSymbol]*Thing
+	env    TEnv
 	tree   ast.ASTNode
 	defn   string
-	params []TParam
+	params []*Thing
 }
 
 type TParam struct {
@@ -43,6 +45,7 @@ type TParam struct {
 
 type TList []*Thing
 type TPropList map[*Thing]*Thing
+type TEnv map[TSymbol]*Thing
 
 type TString string
 type TNumber float64
@@ -63,9 +66,9 @@ func New(value interface{}, tag Tag, local bool) *Thing {
 	return tng
 }
 
-func NewArray(values []*Thing, size, dims, origin uint, local bool) *Thing {
+func NewArray(size, dims, origin uint, local bool) *Thing {
 	arr := TArray{
-		values: values,
+		values: make([]*Thing, 0, size),
 		size:   size,
 		dims:   dims,
 		origin: origin,
@@ -73,17 +76,17 @@ func NewArray(values []*Thing, size, dims, origin uint, local bool) *Thing {
 	return New(arr, TagTArray, local)
 }
 
-func NewList(values TList, local bool) *Thing {
-	return New(value, TagTList, local)
+func NewList(local bool) *Thing {
+	return New(make(TList, 0, defaultListSize), TagTList, local)
 }
 
-func NewPropList(values TPropList, local bool) *Thing {
-	return New(values, TagTPropList, local)
+func NewPropList(local bool) *Thing {
+	return New(make(TList, 0, 1024), TagTPropList, local)
 }
 
-func NewProc(env map[TSymbol]*Thing, tree ast.Ast, defn string, params []TParam) *Thing {
+func NewProc(tree ast.Ast, defn string, params []TParam) *Thing {
 	proc := TProc{
-		env:    env,
+		env:    make(TEnv, defaultListSize),
 		tree:   tree,
 		defn:   defn,
 		params: params,
@@ -91,7 +94,7 @@ func NewProc(env map[TSymbol]*Thing, tree ast.Ast, defn string, params []TParam)
 	return New(proc, TagTProc, false)
 }
 
-func NewPram(name TSymbol, dflval *Thing, opt, rem bool) *Thing {
+func NewParam(name TSymbol, dflval *Thing, opt, rem bool) *Thing {
 	param := TParam{
 		name:   name,
 		dflval: dflval,
