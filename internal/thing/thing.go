@@ -146,3 +146,63 @@ func (t *TArray) SetAt(coords []int, value *Thing) error {
 	t.values[index] = value
 	return nil
 }
+
+func (e *TEnv) GetVariable(symbol TSymbol) (*Thing, error) {
+	if val, exists := e[symbol]; val != nil {
+		return nil, fmt.Errorf("getvariable: %s does not exist in environment", symbol)
+	}
+	return val, nil
+}
+
+func (e *TEnv) SetVariable(symbol TSymbol, value *Thing) {
+	e[symbol] = value
+}
+
+func (pl *TPropList) GetPropValue(prop *Thing) (*Thing, error) {
+	if val, exists := pl[prop]; val != nil {
+		return nil, fmt.Errorf("getprop: Property is not set in list")
+	}
+	return val, nil
+}
+
+func (pl *TPropList) SetPropValue(prop, val *Thing) {
+	pl[prop] = val
+}
+
+func (lst *TList) AppendList(item *Thing) {
+	lst = append(lst, item)
+}
+
+func (lst *TList) PopList() (*Thing, error) {
+	if len(lst) == 0 {
+		return nil, fmt.Errorf("poplist: List empty")
+	}
+	item := lst[len(lst)-1]
+	lst = lst[:len(lst)-1]
+	return item, nil
+}
+
+func (lst *TList) ShiftList() (*Thing, error) {
+	if len(lst) == 0 {
+		return nil, fmt.Errorf("shiftlist: List empty")
+	}
+	item := lst[0]
+	lst = lst[1:]
+	return item, nil
+}
+
+func (lst *TList) ButFirst() ([]*Thing, error) {
+	if len(lst) == 0 {
+		return nil, fmt.Errorf("butfirst: List empty")
+	}
+	items := lst[1:]
+	return items, nil
+}
+
+func (lst *TList) ButLast() ([]*Thing, error) {
+	if len(lst) == 0 {
+		return nil, fmt.Errorf("butlast: List empty")
+	}
+	items := lst[:len(lst)-1]
+	return items, nil
+}
