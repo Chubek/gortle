@@ -34,11 +34,11 @@ var (
 	WindowHeight = 600
 )
 
-type Point struct {
+type point struct {
 	X, Y float64
 }
 
-type Color struct {
+type color struct {
 	R, G, B, A uint8
 }
 
@@ -50,35 +50,36 @@ type Turtle struct {
 	recordPath bool
 	wrapMode   Wrapping
 	penMode    PenMode
-	bgColor    Color
-	fgColor    Color
+	bgColor    color
+	fgColor    color
 	scale      float64
 	minX, minY int32
 	maxX, maxY int32
 	spriteW    int32
 	spriteH    int32
+	penSize	   int32
 	fontSize   uint
 	fontPath   string
-	path       []Point
+	path       []point
 	renderer   *sdl.Renderer
 	sprite     *sdl.Texture
 	font       *ttf.Font
 }
 
-func (c Color) toSDLColor() {
-	return sdl.Color{R: c.R, G: c.G, B: c.B, A: c.A}
+func (c color) toSDLColor() {
+	return sdl.color{R: c.R, G: c.G, B: c.B, A: c.A}
 }
 
-func (c Color) getFields() (uint8, uint8, uint8, uint8) {
+func (c color) getFields() (uint8, uint8, uint8, uint8) {
 	return c.r, c.g, c.b, c.a
 }
 
-func (c Color) getInverseFields() (uint8, uint8, uint8) {
+func (c color) getInverseFields() (uint8, uint8, uint8) {
 	return 255 - c.r, 255 - c.g, 255 - c.b, c.a
 }
 
-func (p Point) toSDLPoint() {
-	return sdl.Point{X: p.X, Y: p.Y}
+func (p point) toSDLpoint() {
+	return sdl.point{X: p.X, Y: p.Y}
 }
 
 func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
@@ -91,8 +92,8 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		recordPath: false,
 		penMode:    PenPaint,
 		wrapMode:   WrappingWrap,
-		bgColor:    Color{255, 255, 255, 255},
-		fgColor:    Color{0, 0, 0, 0},
+		bgColor:    color{255, 255, 255, 255},
+		fgColor:    color{0, 0, 0, 0},
 		scale:      1.0,
 		minX:       0,
 		minY:       0,
@@ -100,9 +101,10 @@ func NewTurtle(r *sdl.Renderer, s *sdl.Texture) *Turtle {
 		maxY:       WindowHeight - 1,
 		spriteW:    -1,
 		spriteH:    -1,
+		penSize:    1,
 		fontSize:   12,
 		fontPath:   os.GetEnv("GORTLE_DEFAULT_FONTPATH"),
-		path:       make([]Point, 0, 1024),
+		path:       make([]point, 0, 1024),
 		renderer:   r,
 		sprite:     s,
 		font:       nil,
@@ -164,7 +166,7 @@ func (t *Turtle) drawSprite() {
 		H: h,
 	}
 
-	center := sdl.Point{X: w / 2, Y: h / 2}
+	center := sdl.point{X: w / 2, Y: h / 2}
 	t.renderer.CopyEx(
 		t.sprite,
 		nil,
@@ -219,7 +221,7 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 	t.showTurtle = false
 	t.recordPath = true
 	t.path = t.path[:0]
-	t.path = append(t.path, Point{t.x, t.y})
+	t.path = append(t.path, point{t.x, t.y})
 
 	body()
 
@@ -234,10 +236,10 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 	if n < 3 {
 		return
 	}
-	pts := make([]sdl.Point, n)
+	pts := make([]sdl.point, n)
 	for i, v := range t.path {
 		sx, sy := t.screenCoords(v.X, v.Y)
-		pts[i] = sdl.Point{X: sx, Y: sy}
+		pts[i] = sdl.point{X: sx, Y: sy}
 	}
 
 	t.renderer.SetDrawColor(fillR, fillG, fillB, fillA)
@@ -271,16 +273,16 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 
 		for i := 0; i+1 < len(xs); i += 2 {
 			x1, x2 := xs[i], xs[i+1]
-			t.renderer.DrawLine(x1, y, x2, y)
+			t.renderer.DrawThickLine(x1, y, x2, y, t.penSize)
 		}
 	}
 
 	t.renderer.SetDrawColor(outlineR, outlineG, outlineB, outlineA)
-	t.renderer.DrawLines(pts)
+	t.renderer.DrawThickLines(pts, t.penSize)
 
 	last := pts[n-1]
 	first := pts[0]
-	t.renderer.DrawLine(last.X, last.Y, first.X, first.Y)
+	t.renderer.DrawThickLine(last.X, last.Y, first.X, first.Y, t.penSize)
 
 	t.drawSprite()
 	t.renderer.Present()
@@ -295,7 +297,7 @@ func (t *Turtle) BucketFill() {
 	if err := t.renderer.ReadPixels(
 		nil,
 		sdl.PIXELFORMAT_RGBA8888,
-		unsafe.Pointer(&pixels[0]),
+		unsafe.pointer(&pixels[0]),
 		pitch,
 	); err != nil {
 		log.Printf("bucketfill: ReadPixels failed: %v", err)
@@ -313,8 +315,8 @@ func (t *Turtle) BucketFill() {
 		return
 	}
 
-	stack := make([]Point, 0, 1024)
-	stack = append(stack, Point{int(sx), int(sy)})
+	stack := make([]point, 0, 1024)
+	stack = append(stack, point{int(sx), int(sy)})
 
 	for len(stack) > 0 {
 		p := stack[len(stack)-1]
@@ -348,7 +350,7 @@ func (t *Turtle) BucketFill() {
 					pixels[upIdx+1] == targetG &&
 					pixels[upIdx+2] == targetB &&
 					pixels[upIdx+3] == targetA {
-					stack = append(stack, Point{xx, y - 1})
+					stack = append(stack, point{xx, y - 1})
 				}
 			}
 
@@ -358,7 +360,7 @@ func (t *Turtle) BucketFill() {
 					pixels[dnIdx+1] == targetG &&
 					pixels[dnIdx+2] == targetB &&
 					pixels[dnIdx+3] == targetA {
-					stack = append(stack, Point{xx, y + 1})
+					stack = append(stack, point{xx, y + 1})
 				}
 			}
 		}
@@ -460,11 +462,11 @@ func (t *Turtle) Forward(dist float64) {
 		t.renderer.SetDrawColor(r, g, b, a)
 		x1, y1 := t.screenCoords(t.x, t.y)
 		x2, y2 := t.screenCoords(newX, newY)
-		t.renderer.DrawLine(x1, y1, x2, y2)
+		t.renderer.DrawThickLine(x1, y1, x2, y2, t.penSize)
 	}
 
 	if t.recordPath {
-		t.path = append(t.path, Point{newX, newY})
+		t.path = append(t.path, point{newX, newY})
 	}
 
 	t.x, t.y = newX, newY
@@ -555,8 +557,8 @@ func (t *Turtle) Clear() {
 	t.renderer.Present()
 	t.Home()
 	t.penDown = true
-	t.fgColor = Color{255, 255, 255, 255}
-	t.bgColor = Color{0, 0, 0, 0}
+	t.fgColor = color{255, 255, 255, 255}
+	t.bgColor = color{0, 0, 0, 0}
 	t.scale = 1.0
 	t.minX, t.minY = 0, 0
 	t.maxX, t.maxY = screenWidth-1, screenHeight-1
@@ -565,11 +567,11 @@ func (t *Turtle) Clear() {
 }
 
 func (t *Turtle) SetForegroundColor(r, g, b, a uint8) {
-	t.fgColor = Color{r, g, b, a}
+	t.fgColor = color{r, g, b, a}
 }
 
 func (t *Turtle) SetBackgroundColor(r, g, b, a uint8) {
-	t.bgColor = Color{r, g, b, a}
+	t.bgColor = color{r, g, b, a}
 }
 
 func (t *Turtle) SetPosition(x, y float64) {
@@ -623,6 +625,10 @@ func (t *Turtle) SetPenMode(penMode PenMode) {
 	t.penMode = penMode
 }
 
+func (t *Turtle) SetPenSize(penSize uint) {
+	t.penSize = penSize
+}
+
 func (t *Turtle) SetFontSize(fontSize uint) {
 	t.fontSize = fontSize
 }
@@ -661,6 +667,10 @@ func (t *Turtle) GetTurtleVisibility() bool {
 
 func (t *Turtle) GetWrapMode() Wrapping {
 	return t.wrapMode
+}
+
+func (t *Turtle) GetPenSize() uint {
+	return t.penSize
 }
 
 func (t *Turtle) GetFontSize() uint {
