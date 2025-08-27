@@ -57,7 +57,7 @@ type Turtle struct {
 	maxX, maxY int32
 	spriteW    int32
 	spriteH    int32
-	penSize	   int32
+	penSize    int32
 	fontSize   uint
 	fontPath   string
 	path       []point
@@ -216,6 +216,7 @@ func (t *Turtle) PrintLabel(label string) {
 func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 	origPenDown := t.penDown
 	origShowTurtle := t.showTurtle
+	origRecordPath := t.recordPath
 
 	t.penDown = false
 	t.showTurtle = false
@@ -225,10 +226,8 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 
 	body()
 
-	t.recordPath = false
-
+	t.recordPath = origRecordPath
 	outlineR, outlineG, outlineB, outlineA := t.currentDrawColor()
-
 	t.penDown = origPenDown
 	t.showTurtle = origShowTurtle
 
@@ -236,17 +235,48 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 	if n < 3 {
 		return
 	}
-	pts := make([]sdl.point, n)
+
+	pts := make([]sdl.Point, n)
 	for i, v := range t.path {
 		sx, sy := t.screenCoords(v.X, v.Y)
-		pts[i] = sdl.point{X: sx, Y: sy}
+		pts[i] = sdl.Point{X: sx, Y: sy}
 	}
 
 	t.renderer.SetDrawColor(fillR, fillG, fillB, fillA)
+	minX, minY, maxX, maxY := t.getPolygonBounds(pts)
+	t.fillPolygonScanline(pts, minX, minY, maxX, maxY, fillR, fillG, fillB, fillA)
+	t.renderer.SetDrawColor(outlineR, outlineG, outlineB, outlineA)
+	if t.penSize <= 1 {
+		t.renderer.DrawLines(pts)
+	} else {
+		t.renderer.DrawThickLines(pts, t.penSize)
+	}
 
-	minY := pts[0].Y
-	maxY := pts[0].Y
-	for _, p := range pts {
+	if t.penSize <= 1 {
+		t.renderer.DrawLine(pts[n-1].X, pts[n-1].Y, pts[0].X, pts[0].Y)
+	} else {
+		t.renderer.DrawThickLine(pts[n-1].X, pts[n-1].Y, pts[0].X, pts[0].Y, t.penSize)
+	}
+
+	t.drawSprite()
+	t.renderer.Present()
+}
+
+func (t *Turtle) getPolygonBounds(pts []sdl.Point) (minX, minY, maxX, maxY int32) {
+	if len(pts) == 0 {
+		return 0, 0, 0, 0
+	}
+
+	minX, minY = pts[0].X, pts[0].Y
+	maxX, maxY = pts[0].X, pts[0].Y
+
+	for _, p := range pts[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
 		if p.Y < minY {
 			minY = p.Y
 		}
@@ -255,49 +285,66 @@ func (t *Turtle) Filled(fillR, fillG, fillB, fillA uint8, body func()) {
 		}
 	}
 
+	return minX, minY, maxX, maxY
+}
+
+func (t *Turtle) fillPolygonScanline(pts []sdl.Point, minX, minY, maxX, maxY int32, r, g, b, a uint8) {
 	for y := minY; y <= maxY; y++ {
-		var xs []int32
+		intersections := make([]int32, 0, 16)
+
+		n := len(pts)
 		for i := 0; i < n; i++ {
-			a := pts[i]
-			b := pts[(i+1)%n]
-			if (a.Y <= y && b.Y > y) || (b.Y <= y && a.Y > y) {
-				tFrac := float64(y-a.Y) / float64(b.Y-a.Y)
-				x := float64(a.X) + tFrace*float64(b.X-a.X)
-				xs := append(xs, int32(math.Round(x)))
+			p1 := pts[i]
+			p2 := pts[(i+1)%n]
+
+			if (p1.Y <= y && p2.Y > y) || (p2.Y <= y && p1.Y > y) {
+				if p1.Y != p2.Y {
+					tFrac := float64(y-p1.Y) / float64(p2.Y-p1.Y)
+					x := float64(p1.X) + tFrac*float64(p2.X-p1.X)
+					intersections = append(intersections, int32(math.Round(x)))
+				}
 			}
 		}
-		if len(xs) < 2 {
-			continue
-		}
-		sort.Slice(xs, func(i, j int) bool { return xs[i] < sx[j] })
 
-		for i := 0; i+1 < len(xs); i += 2 {
-			x1, x2 := xs[i], xs[i+1]
-			t.renderer.DrawThickLine(x1, y, x2, y, t.penSize)
+		sort.Slice(intersections, func(i, j int) bool {
+			return intersections[i] < intersections[j]
+		})
+
+		for i := 0; i+1 < len(intersections); i += 2 {
+			x1 := intersections[i]
+			x2 := intersections[i+1]
+
+			if x1 < minX {
+				x1 = minX
+			}
+			if x2 > maxX {
+				x2 = maxX
+			}
+
+			if x1 <= x2 {
+				t.renderer.SetDrawColor(r, g, b, a)
+				t.renderer.DrawLine(x1, y, x2, y)
+			}
 		}
 	}
-
-	t.renderer.SetDrawColor(outlineR, outlineG, outlineB, outlineA)
-	t.renderer.DrawThickLines(pts, t.penSize)
-
-	last := pts[n-1]
-	first := pts[0]
-	t.renderer.DrawThickLine(last.X, last.Y, first.X, first.Y, t.penSize)
-
-	t.drawSprite()
-	t.renderer.Present()
 }
 
 func (t *Turtle) BucketFill() {
 	sx, sy := t.screenCoords(t.x, t.y)
-	w, h := WindowWidth, WindowHeight
-	pitch := w * 4
 
-	pixels := make([]byte, h*pitch)
+	if sx < 0 || sx >= int32(WindowWidth) || sy < 0 || sy >= int32(WindowHeight) {
+		return
+	}
+
+	fillR, fillG, fillB, fillA := t.currentDrawColor()
+
+	pitch := WindowWidth * 4
+	pixels := make([]byte, WindowHeight*pitch)
+
 	if err := t.renderer.ReadPixels(
 		nil,
 		sdl.PIXELFORMAT_RGBA8888,
-		unsafe.pointer(&pixels[0]),
+		unsafe.Pointer(&pixels[0]),
 		pitch,
 	); err != nil {
 		log.Printf("bucketfill: ReadPixels failed: %v", err)
@@ -305,72 +352,26 @@ func (t *Turtle) BucketFill() {
 	}
 
 	startIdx := int(sy)*pitch + int(sx)*4
-	targetR := pixels[startIdx+0]
+
+	targetR := pixels[startIdx]
 	targetG := pixels[startIdx+1]
 	targetB := pixels[startIdx+2]
 	targetA := pixels[startIdx+3]
 
-	fillR, fillG, fillB, fillA := t.currentDrawColor()
 	if targetR == fillR && targetG == fillG && targetB == fillB && targetA == fillA {
 		return
 	}
 
-	stack := make([]point, 0, 1024)
-	stack = append(stack, point{int(sx), int(sy)})
-
-	for len(stack) > 0 {
-		p := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		x, y := p.x, p.y
-
-		xi := x
-		for xi >= 0 {
-			if pixels[idx+0] != targetR ||
-				pixels[idx+1] != targetG ||
-				pixels[idx+2] != targetB ||
-				pixels[idx+3] != targetA {
-				break
-			}
-			xi -= 1
-		}
-		left := xi + 1
-
-		for xx := left; xx < w; xx++ {
-			idx := y*pitch + xx*4
-			if pixels[idx+0] != targetR ||
-				pixels[idx+1] != targetG ||
-				pixels[idx+2] != targetB ||
-				pixels[idx+3] != targetA {
-				break
-			}
-
-			if y > 0 {
-				upIdx := (y-1)*pitch + xx*4
-				if pixels[upIdx+0] == targetR &&
-					pixels[upIdx+1] == targetG &&
-					pixels[upIdx+2] == targetB &&
-					pixels[upIdx+3] == targetA {
-					stack = append(stack, point{xx, y - 1})
-				}
-			}
-
-			if y < h-1 {
-				dnIdx := (y+1)*pitch + xx*4
-				if pixels[dnIdx+0] == targetR &&
-					pixels[dnIdx+1] == targetG &&
-					pixels[dnIdx+2] == targetB &&
-					pixels[dnIdx+3] == targetA {
-					stack = append(stack, point{xx, y + 1})
-				}
-			}
-		}
-	}
+	t.scanlineFloodFill(pixels, int(sx), int(sy),
+		targetR, targetG, targetB, targetA,
+		fillR, fillG, fillB, fillA,
+		pitch)
 
 	tex, err := t.renderer.CreateTexture(
 		sdl.PIXELFORMAT_RGBA8888,
 		sdl.TEXTUREACCESS_STATIC,
-		int32(w),
-		int32(h),
+		int32(WindowWidth),
+		int32(WindowHeight),
 	)
 	if err != nil {
 		log.Printf("bucketfill: CreateTexture failed: %v", err)
@@ -385,6 +386,92 @@ func (t *Turtle) BucketFill() {
 
 	t.renderer.Copy(tex, nil, nil)
 	t.renderer.Present()
+}
+
+func (t *Turtle) scanlineFloodFill(pixels []byte, x, y int,
+	targetR, targetG, targetB, targetA,
+	fillR, fillG, fillB, fillA uint8,
+	pitch int) {
+
+	type segment struct {
+		y, x1, x2, dy int
+	}
+
+	stack := make([]segment, 0, 1024)
+
+	matchesTarget := func(px, py int) bool {
+		if px < 0 || px >= WindowWidth || py < 0 || py >= WindowHeight {
+			return false
+		}
+		idx := py*pitch + px*4
+		return pixels[idx] == targetR &&
+			pixels[idx+1] == targetG &&
+			pixels[idx+2] == targetB &&
+			pixels[idx+3] == targetA
+	}
+
+	setPixel := func(px, py int) {
+		if px >= 0 && px < WindowWidth && py >= 0 && py < WindowHeight {
+			idx := py*pitch + px*4
+			pixels[idx] = fillR
+			pixels[idx+1] = fillG
+			pixels[idx+2] = fillB
+			pixels[idx+3] = fillA
+		}
+	}
+
+	x1 := x
+	for x1 >= 0 && matchesTarget(x1, y) {
+		x1--
+	}
+	x1++
+
+	x2 := x
+	for x2 < WindowWidth && matchesTarget(x2, y) {
+		x2++
+	}
+	x2--
+
+	stack = append(stack, segment{y, x1, x2, 1})
+	stack = append(stack, segment{y, x1, x2, -1})
+
+	for len(stack) > 0 {
+		s := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		yNew := s.y + s.dy
+		if yNew < 0 || yNew >= WindowHeight {
+			continue
+		}
+
+		for x := s.x1; x <= s.x2; x++ {
+			if !matchesTarget(x, yNew) {
+				continue
+			}
+
+			xNew1 := x
+			for xNew1 >= 0 && matchesTarget(xNew1, yNew) {
+				setPixel(xNew1, yNew)
+				xNew1--
+			}
+			xNew1++
+
+			xNew2 := x + 1
+			for xNew2 < WindowWidth && matchesTarget(xNew2, yNew) {
+				setPixel(xNew2, yNew)
+				xNew2++
+			}
+			xNew2--
+
+			if s.dy > 0 {
+				stack = append(stack, segment{yNew, xNew1, xNew2, 1})
+			} else {
+				stack = append(stack, segment{yNew, xNew1, xNew2, -1})
+			}
+
+			x = xNew2
+		}
+	}
 }
 
 func (t *Turtle) currentDrawColor() (uint8, uint8, uint8, uint8) {
