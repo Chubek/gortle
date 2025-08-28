@@ -147,6 +147,22 @@ func (t *TArray) SetAt(coords []int, value *Thing) error {
 	return nil
 }
 
+func (t *TArray) ToList() *TList {
+	lst := TList(t.values)
+	return &lst
+}
+
+func (t *TArry) CombineWith(otherT *TArray) *TArray {
+	combined := &TArray{
+		values: make([]*Thing, len(t.values)+len(otherT.values)+1),
+		dims:   append(t.dims[:], otherT.dims[:]...),
+		origin: t.origin,
+	}
+	copy(combined.values, t.values)
+	copy(combined.values[len(t.values):], otherT.values)
+	return combined
+}
+
 func (e *TEnv) GetVariable(symbol TSymbol) (*Thing, error) {
 	if val, exists := e[symbol]; val != nil {
 		return nil, fmt.Errorf("getvariable: %s does not exist in environment", symbol)
@@ -205,4 +221,23 @@ func (lst *TList) ButLast() ([]*Thing, error) {
 	}
 	items := lst[:len(lst)-1]
 	return items, nil
+}
+
+func (lst *TList) ToArray() *TArray {
+	arr := &TArray{
+		values: make([]*Thing, len(lst)),
+		dims:   []uint{len(lst)},
+		origin: 1,
+	}
+	for i, elt := range lst {
+		arr.values[i] = elt
+	}
+	return arr
+}
+
+func (lst *TList) CombineWith(otherLst TList) TList {
+	combined := make(TList, len(lst)+len(otherLst)+1)
+	copy(combined, lst)
+	copy(combined[len(lst):], otherLst)
+	return combined
 }
