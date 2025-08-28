@@ -114,6 +114,18 @@ func NewParam(name TSymbol, dflval *Thing, opt, rem bool) *Thing {
 	return New(param, TagTParam, true)
 }
 
+func NewString(value TString, local bool) *Thing {
+	return New(value, TagTString, local)
+}
+
+func NewNumber(value TNumber, local bool) *Thing {
+	return New(value, TagTNumber, local)
+}
+
+func NewSymbol(value TSymbol, local bool) *Thing {
+	return New(value, TagTSymbol, local)
+}
+
 func (t *TArray) getIndex(coords []int) (int, error) {
 	if len(coords) != len(t.dims) {
 		return 0, fmt.Errorf("Invalid number of coordinates")
