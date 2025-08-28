@@ -147,12 +147,13 @@ func (t *TArray) SetAt(coords []int, value *Thing) error {
 	return nil
 }
 
-func (t *TArray) ToList() *TList {
-	lst := TList(t.values)
-	return &lst
+func (t *TArray) ToList() *Thing {
+	lst := NewList()
+	copy(lst, t.values)
+	return lst
 }
 
-func (t *TArry) CombineWith(otherT *TArray) *TArray {
+func (t *TArry) CombineWith(otherT *TArray, local bool) *Thing {
 	combined := &TArray{
 		values: make([]*Thing, len(t.values)+len(otherT.values)+1),
 		dims:   append(t.dims[:], otherT.dims[:]...),
@@ -160,7 +161,7 @@ func (t *TArry) CombineWith(otherT *TArray) *TArray {
 	}
 	copy(combined.values, t.values)
 	copy(combined.values[len(t.values):], otherT.values)
-	return combined
+	return New(combined, TagTArray, local)
 }
 
 func (e *TEnv) GetVariable(symbol TSymbol) (*Thing, error) {
@@ -235,9 +236,9 @@ func (lst *TList) ToArray() *TArray {
 	return arr
 }
 
-func (lst *TList) CombineWith(otherLst TList) TList {
+func (lst *TList) CombineWith(otherLst TList, local bool) *Thing {
 	combined := make(TList, len(lst)+len(otherLst)+1)
 	copy(combined, lst)
 	copy(combined[len(lst):], otherLst)
-	return combined
+	return New(combined, TagTList, local)
 }
