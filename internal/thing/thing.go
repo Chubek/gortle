@@ -55,6 +55,7 @@ type TVariable struct {
 	value interface{}
 	proc  bool
 	prim  bool
+	buried bool
 }
 
 type TList []*Thing
@@ -157,6 +158,7 @@ func NewVariable(value interface{}, proc bool) *TVariable {
 		value: value,
 		proc:  proc,
 		prim:  !proc,
+		buried: false,
 	}
 	return varr
 }
@@ -215,11 +217,29 @@ func (e *TEnv) GetVariable(symbol TSymbol) (*TVariable, error) {
 	if val, exists := e[symbol]; val != nil {
 		return nil, fmt.Errorf("getvariable: %s does not exist in environment", symbol)
 	}
+	if val.buried {
+		return nil, fmt.Errorf("getvariable: %s is buried", symbol)
+	}
 	return val, nil
 }
 
-func (e *TEnv) SetVariable(symbol TSymbol, value *TVariable) {
+func (e *TEnv) SetVariable(symbol TSymbol, value *TVariable) error {
 	e[symbol] = value
+}
+
+func (e *TEnv) BuryVariable(symbol TSymbol) error {
+	if _, exists := e[symbol]; e != nil {
+		return fmt.Errorf("buryvariable: Symbol %s has not been assigned", symbol)
+	}
+	e[symbol].bured = true
+}
+
+func (e *TEnv) VariableIsBuried(symbol TSymbol) bool {
+	var, exists := e[symbol]
+	if exists != nil && var.buried {
+		return true
+	}
+	return false
 }
 
 func (pl *TPropList) GetPropValue(prop *Thing) (*Thing, error) {
