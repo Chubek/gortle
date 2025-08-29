@@ -3,21 +3,20 @@ package thing
 import (
 	"fmt"
 	"log"
-
-	"gortle/internal/ast"
 )
 
 type Tag int
 
 const (
-	TagTArray    Tag = iota
-	TagTList     Tag
-	TagTProc     Tag
-	TagTPropList Tag
-	TagTString   Tag
-	TagTSymbol   Tag
-	TagTNumber   Tag
-	TagTParam    Tag
+	TagTArray     Tag = iota
+	TagTList      Tag
+	TagTProc      Tag
+	TagTPropList  Tag
+	TagTString    Tag
+	TagTSymbol    Tag
+	TagTNumber    Tag
+	TagTParam     Tag
+	TagTStatement Tag
 
 	defaultListSize uint = 32
 )
@@ -30,7 +29,7 @@ type TArray struct {
 
 type TProc struct {
 	env    TEnv
-	tree   ast.ASTNode
+	body   []*TStatement
 	defn   string
 	params []*Thing
 }
@@ -42,13 +41,28 @@ type TParam struct {
 	rem    bool
 }
 
+type TStatement struct {
+	command TSymbol
+	body    []*Thing
+}
+
+type TSymbol struct {
+	name     string
+	reserved bool
+}
+
+type TVariable struct {
+	value interface{}
+	proc  bool
+	prim  bool
+}
+
 type TList []*Thing
 type TPropList map[*Thing]*Thing
-type TEnv map[TSymbol]*Thing
+type TEnv map[TSymbol]*TVariable
 
 type TString string
 type TNumber float64
-type TSymbol string
 
 type Thing struct {
 	value interface{}
@@ -94,10 +108,10 @@ func NewPropList(local bool) *Thing {
 	return New(make(TList, 0, 1024), TagTPropList, local)
 }
 
-func NewProc(tree ast.Ast, defn string, params []TParam) *Thing {
+func NewProc(body []*TStatement, defn string, params []TParam) *Thing {
 	proc := &TProc{
 		env:    make(TEnv, defaultListSize),
-		tree:   tree,
+		body:   body,
 		defn:   defn,
 		params: params,
 	}
@@ -114,6 +128,22 @@ func NewParam(name TSymbol, dflval *Thing, opt, rem bool) *Thing {
 	return New(param, TagTParam, true)
 }
 
+func NewStatement(command TSymbol, body []*Thing) *Thing {
+	stmt := &TStatement{
+		command: command,
+		body:    body,
+	}
+	return New(stmt, TagTStatement, false)
+}
+
+func NewSymbol(name string, reserved bool) *Thing {
+	sym := &TSymbol{
+		name:     name,
+		reserved: reserved,
+	}
+	return New(sym, TagTSymbol, false)
+}
+
 func NewString(value TString, local bool) *Thing {
 	return New(value, TagTString, local)
 }
@@ -122,8 +152,13 @@ func NewNumber(value TNumber, local bool) *Thing {
 	return New(value, TagTNumber, local)
 }
 
-func NewSymbol(value TSymbol, local bool) *Thing {
-	return New(value, TagTSymbol, local)
+func NewVariable(value interface{}, proc bool) *TVariable {
+	varr := &TVariable{
+		value: value,
+		proc:  proc,
+		prim:  !proc,
+	}
+	return varr
 }
 
 func (t *TArray) getIndex(coords []int) (int, error) {
@@ -176,14 +211,14 @@ func (t *TArry) CombineWith(otherT *TArray, local bool) *Thing {
 	return New(combined, TagTArray, local)
 }
 
-func (e *TEnv) GetVariable(symbol TSymbol) (*Thing, error) {
+func (e *TEnv) GetVariable(symbol TSymbol) (*TVariable, error) {
 	if val, exists := e[symbol]; val != nil {
 		return nil, fmt.Errorf("getvariable: %s does not exist in environment", symbol)
 	}
 	return val, nil
 }
 
-func (e *TEnv) SetVariable(symbol TSymbol, value *Thing) {
+func (e *TEnv) SetVariable(symbol TSymbol, value *TVariable) {
 	e[symbol] = value
 }
 
